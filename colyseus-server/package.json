@@ -1,0 +1,19 @@
+{
+  "name": "worldcharacters-colyseus-server",
+  "version": "1.0.0",
+  "description": "Colyseus game server for WorldCharacters 3D viewer",
+  "main": "lib/index.js",
+  "scripts": {
+    "start": "tsx watch src/index.ts",
+    "build": "tsc",
+    "prod": "node lib/index.js"
+  },
+  "dependencies": {
+    "colyseus": "^0.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}

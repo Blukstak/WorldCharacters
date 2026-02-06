@@ -1,11 +1,12 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { BabylonViewer } from './components/BabylonViewer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
-import { ScrollArea } from './components/ui/scroll-area';
 import { Play, Pause, Upload, X, Users, Menu, Maximize, Video, Library } from 'lucide-react';
 import { AnimationGroup, AbstractMesh } from '@babylonjs/core';
 import { VideoStreamOverlay } from './components/VideoStreamOverlay';
+import { useColyseus } from './hooks/useColyseus';
+import type { ColyseusManager } from './multiplayer/ColyseusManager';
 import './index.css';
 
 interface AnimationInfo {
@@ -40,10 +41,29 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [videoStreamMode, setVideoStreamMode] = useState(false);
+  const [multiplayerMode, setMultiplayerMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const animationGroupsRef = useRef<AnimationGroup[]>([]);
   const viewerContainerRef = useRef<HTMLDivElement>(null);
+  const colyseusManagerRef = useRef<ColyseusManager | null>(null);
+
+  // Generate stable player name once
+  const playerNameRef = useRef(`Player-${Math.random().toString(36).substr(2, 9)}`);
+
+  // Initialize Colyseus multiplayer hook
+  const { manager: colyseusManager, playerCount } = useColyseus({
+    enabled: multiplayerMode,
+    serverUrl: 'ws://localhost:2567',
+    roomName: 'game',
+    playerName: playerNameRef.current,
+    modelPath: typeof modelFile === 'string' ? modelFile : undefined,
+  });
+
+  // Update manager ref when it changes
+  useEffect(() => {
+    colyseusManagerRef.current = colyseusManager;
+  }, [colyseusManager]);
 
   const handleModelLoaded = useCallback((animationGroups: AnimationGroup[], _meshes: AbstractMesh[]) => {
     animationGroupsRef.current = animationGroups;
@@ -183,6 +203,18 @@ function App() {
       if (next) {
         setDemoMode(true);
       } else {
+        setDemoMode(false);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleMultiplayerMode = useCallback(() => {
+    setMultiplayerMode((prev) => {
+      const next = !prev;
+      if (next) {
+        // Don't automatically enable video streaming
+        // User can enable it separately if LiveKit is configured
         setDemoMode(false);
       }
       return next;
@@ -343,6 +375,8 @@ function App() {
                 onModelLoaded={handleModelLoaded}
                 onLoadError={handleLoadError}
                 demoMode={demoMode}
+                multiplayerMode={multiplayerMode}
+                colyseusManager={colyseusManager}
               />
 
               {/* Fullscreen button */}
@@ -357,7 +391,9 @@ function App() {
               </Button>
 
               {/* Video stream overlay */}
-              {videoStreamMode && <VideoStreamOverlay />}
+              {videoStreamMode && (
+                <VideoStreamOverlay />
+              )}
             </div>
           )}
         </div>
@@ -442,9 +478,19 @@ function App() {
                       size="lg"
                       onClick={toggleVideoStreamMode}
                       className="w-full"
+                      disabled={multiplayerMode}
                     >
                       <Video className="w-5 h-5 mr-2" />
                       {videoStreamMode ? 'Exit Video Stream' : 'Video Stream Demo'}
+                    </Button>
+                    <Button
+                      variant={multiplayerMode ? "default" : "secondary"}
+                      size="lg"
+                      onClick={toggleMultiplayerMode}
+                      className="w-full"
+                    >
+                      <Users className="w-5 h-5 mr-2" />
+                      {multiplayerMode ? `Multiplayer (${playerCount} players)` : 'Multiplayer Mode'}
                     </Button>
                   </>
                 )}
@@ -453,7 +499,7 @@ function App() {
                   size="sm"
                   onClick={stopAllAnimations}
                   className="w-full"
-                  disabled={demoMode}
+                  disabled={demoMode || multiplayerMode}
                 >
                   Stop All
                 </Button>

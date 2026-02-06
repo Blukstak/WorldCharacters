@@ -15,15 +15,29 @@ import {
   Color3,
 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
+import { PathfindingManager } from '../pathfinding/PathfindingManager';
+import { PlayerController } from '../player/PlayerController';
+import { RemotePlayer } from '../player/RemotePlayer';
+import type { ColyseusManager } from '../multiplayer/ColyseusManager';
+import type { Player as PlayerSchema } from '../../../colyseus-server/src/schema/Player';
 
 interface BabylonViewerProps {
   onModelLoaded?: (animations: AnimationGroup[], meshes: AbstractMesh[]) => void;
   onLoadError?: (error: Error) => void;
   modelFile?: File | string | null;
   demoMode?: boolean;
+  multiplayerMode?: boolean;
+  colyseusManager?: ColyseusManager | null;
 }
 
-export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode = false }: BabylonViewerProps) {
+export function BabylonViewer({
+  onModelLoaded,
+  onLoadError,
+  modelFile,
+  demoMode = false,
+  multiplayerMode = false,
+  colyseusManager = null
+}: BabylonViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
   const sceneRef = useRef<Scene | null>(null);
@@ -76,6 +90,25 @@ export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode 
     const light = new HemisphericLight('light', new Vector3(0, 1, 0), scene);
     light.intensity = 0.7;
 
+    // Click handler for multiplayer mode
+    const handleCanvasClick = (event: PointerEvent) => {
+      if (!multiplayerMode || !colyseusManager) return;
+
+      const pickResult = scene.pick(event.clientX, event.clientY,
+        (mesh) => mesh.name === 'floor');
+
+      if (pickResult?.hit && pickResult.pickedPoint) {
+        // PlayerController will handle the click via colyseusManager
+        // The click point is passed to the player controller in the multiplayer useEffect
+        const clickEvent = new CustomEvent('babylonClick', {
+          detail: { point: pickResult.pickedPoint }
+        });
+        canvas.dispatchEvent(clickEvent);
+      }
+    };
+
+    canvas.addEventListener('pointerdown', handleCanvasClick);
+
     // Render loop
     engine.runRenderLoop(() => {
       scene.render();
@@ -89,10 +122,11 @@ export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode 
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      canvas.removeEventListener('pointerdown', handleCanvasClick);
       scene.dispose();
       engine.dispose();
     };
-  }, []);
+  }, [multiplayerMode, colyseusManager]);
 
   // Load model when file changes (but not during demo mode)
   useEffect(() => {
@@ -616,6 +650,137 @@ export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode 
       }
     }
   }, [demoMode, modelFile]);
+
+  // Multiplayer mode - initialize pathfinding and player controllers
+  useEffect(() => {
+    console.log('[BabylonViewer] Multiplayer useEffect triggered');
+    console.log('[BabylonViewer] - hasScene:', !!sceneRef.current);
+    console.log('[BabylonViewer] - hasCanvas:', !!canvasRef.current);
+    console.log('[BabylonViewer] - hasModelFile:', !!modelFile);
+    console.log('[BabylonViewer] - multiplayerMode:', multiplayerMode);
+    console.log('[BabylonViewer] - hasColyseusManager:', !!colyseusManager);
+
+    if (!sceneRef.current || !canvasRef.current || !modelFile || !multiplayerMode || !colyseusManager) {
+      console.log('[BabylonViewer] Multiplayer conditions not met - exiting');
+      return;
+    }
+
+    const scene = sceneRef.current;
+    const canvas = canvasRef.current;
+    const camera = scene.activeCamera as ArcRotateCamera;
+
+    console.log('[Multiplayer] Starting initialization...');
+    addDiagnostic('[Multiplayer] Initializing multiplayer mode...');
+
+    // Create game environment (floor, lighting)
+    const areaSize = 50;
+
+    // Improve lighting for multiplayer
+    const hemiLight = scene.lights[0] as HemisphericLight;
+    if (hemiLight) {
+      hemiLight.intensity = 1.2;
+    }
+
+    // Create floor
+    const floor = MeshBuilder.CreateGround('floor', { width: areaSize, height: areaSize }, scene);
+    const floorMat = new StandardMaterial('floorMat', scene);
+    floorMat.diffuseColor = new Color3(0.3, 0.3, 0.35);
+    floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
+    floor.material = floorMat;
+    floor.position.y = 0;
+
+    // Position camera to see the floor
+    camera.setPosition(new Vector3(10, 15, -20));
+    camera.setTarget(Vector3.Zero());
+
+    addDiagnostic('[Multiplayer] Environment created');
+
+    // Initialize pathfinding system
+    const pathfinding = new PathfindingManager();
+    pathfinding.initialize(scene);
+
+    addDiagnostic('[Multiplayer] Pathfinding initialized');
+
+    // Initialize local player controller
+    const localPlayer = new PlayerController(scene, modelFile, pathfinding, colyseusManager);
+
+    // Expose to window for testing
+    (window as any).localPlayerRef = { current: localPlayer };
+    (window as any).colyseusManagerRef = { current: colyseusManager };
+
+    addDiagnostic('[Multiplayer] Local player controller initialized');
+
+    // Handle canvas clicks for movement
+    const handleBabylonClick = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.point) {
+        localPlayer.handleClick(customEvent.detail.point);
+        addDiagnostic(`[Multiplayer] Click at (${customEvent.detail.point.x.toFixed(1)}, ${customEvent.detail.point.z.toFixed(1)})`);
+      }
+    };
+
+    canvas.addEventListener('babylonClick', handleBabylonClick);
+
+    // Handle remote players joining
+    colyseusManager.onRemotePlayerJoined((sessionId: string, player: PlayerSchema) => {
+      addDiagnostic(`[Multiplayer] Remote player joined: ${player.name} (${sessionId})`);
+      try {
+        console.log(`🔧 [Multiplayer] Creating RemotePlayer for ${sessionId}...`);
+        const remotePlayer = new RemotePlayer(scene, sessionId, player.modelPath);
+        console.log(`🔧 [Multiplayer] RemotePlayer created successfully for ${sessionId}`);
+        colyseusManager.registerRemotePlayer(sessionId, remotePlayer);
+        console.log(`🔧 [Multiplayer] RemotePlayer registered for ${sessionId}`);
+      } catch (error) {
+        console.error(`❌ [Multiplayer] Failed to create RemotePlayer for ${sessionId}:`, error);
+      }
+    });
+
+    // Process existing players that joined before we registered the callback
+    const room = colyseusManager.getRoom();
+    if (room) {
+      room.state.players.forEach((player: PlayerSchema, sessionId: string) => {
+        if (sessionId !== room.sessionId) {
+          addDiagnostic(`[Multiplayer] Processing existing player: ${player.name} (${sessionId})`);
+          try {
+            console.log(`🔧 [Multiplayer] Creating RemotePlayer for existing player ${sessionId}...`);
+            const remotePlayer = new RemotePlayer(scene, sessionId, player.modelPath);
+            console.log(`🔧 [Multiplayer] RemotePlayer created successfully for existing player ${sessionId}`);
+            colyseusManager.registerRemotePlayer(sessionId, remotePlayer);
+            console.log(`🔧 [Multiplayer] RemotePlayer registered for existing player ${sessionId}`);
+          } catch (error) {
+            console.error(`❌ [Multiplayer] Failed to create RemotePlayer for existing player ${sessionId}:`, error);
+          }
+        }
+      });
+    }
+
+    // Update loop for multiplayer (local player + remote players)
+    const updateObserver = scene.onBeforeRenderObservable.add(() => {
+      localPlayer.update();
+      colyseusManager.updateRemotePlayers();
+    });
+
+    addDiagnostic('[Multiplayer] Ready! Click on the floor to move.');
+
+    return () => {
+      scene.onBeforeRenderObservable.remove(updateObserver);
+      canvas.removeEventListener('babylonClick', handleBabylonClick);
+      localPlayer.dispose();
+      colyseusManager.disconnect();
+
+      // Clean up floor
+      const floorMesh = scene.getMeshByName('floor');
+      if (floorMesh) {
+        floorMesh.dispose();
+      }
+
+      // Clean up window references
+      delete (window as any).localPlayerRef;
+      delete (window as any).colyseusManagerRef;
+
+      addDiagnostic('[Multiplayer] Cleaned up multiplayer mode');
+    };
+  }, [multiplayerMode, modelFile, colyseusManager]);
 
   return (
     <div className="relative w-full h-full">
