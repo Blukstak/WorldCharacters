@@ -1,8 +1,12 @@
 {
   "mcpServers": {
     "blender": {
-      "command": "C:/Users/jean0/AppData/Roaming/Python/Python310/Scripts/blender-mcp.exe",
+      "command": "/mnt/c/Users/jean0/AppData/Roaming/Python/Python310/Scripts/blender-mcp.exe",
       "args": []
+    },
+    "browsermcp": {
+      "command": "npx",
+      "args": ["@browsermcp/mcp@latest"]
     }
   }
 }

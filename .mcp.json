@@ -3,6 +3,10 @@
     "blender": {
       "command": "C:\\Users\\jean0\\.local\\bin\\uvx.exe",
       "args": ["blender-mcp"]
+    },
+    "browsermcp": {
+      "command": "npx",
+      "args": ["@browsermcp/mcp@latest"]
     }
   }
 }

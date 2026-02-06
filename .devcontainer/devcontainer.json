@@ -1,0 +1,44 @@
+{
+  "name": "WorldCharacters",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/WorldCharacters",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.vscode-typescript-next",
+        "ms-azuretools.vscode-docker",
+        "rust-lang.rust-analyzer",
+        "anthropic.claude-code"
+      ]
+    }
+  },
+
+  "forwardPorts": [5173, 5174, 6080, 9009],
+  "portsAttributes": {
+    "5173": {
+      "label": "LiveKit Stream (Vite)",
+      "onAutoForward": "notify"
+    },
+    "5174": {
+      "label": "3D Viewer (Vite)",
+      "onAutoForward": "notify"
+    },
+    "6080": {
+      "label": "noVNC (Browser)",
+      "onAutoForward": "notify"
+    },
+    "9009": {
+      "label": "Browser MCP WebSocket",
+      "onAutoForward": "silent"
+    }
+  },
+
+  "postCreateCommand": "cd 3d-viewer && npm install && cd ../livekit-stream && npm install",
+
+  "remoteUser": "vscode"
+}
