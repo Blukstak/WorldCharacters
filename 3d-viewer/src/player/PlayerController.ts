@@ -314,8 +314,8 @@ export class PlayerController {
     direction.normalize();
     this.position.addInPlace(direction.scale(this.moveSpeed));
 
-    // Rotate to face movement direction (models face -Z, so add PI)
-    const targetRotationY = Math.atan2(direction.x, direction.z) + Math.PI;
+    // Rotate to face movement direction
+    const targetRotationY = Math.atan2(direction.x, direction.z);
     this.rotation.y = this.lerpAngle(this.rotation.y, targetRotationY, this.rotationSpeed);
 
     // Update mesh position and rotation
