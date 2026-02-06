@@ -91,15 +91,14 @@ export function BabylonViewer({
     light.intensity = 0.7;
 
     // Click handler for multiplayer mode
-    const handleCanvasClick = (event: PointerEvent) => {
+    const handleCanvasClick = () => {
       if (!multiplayerMode || !colyseusManager) return;
 
-      const pickResult = scene.pick(event.clientX, event.clientY,
+      // Use scene.pointerX/Y which are canvas-relative (not viewport-relative clientX/Y)
+      const pickResult = scene.pick(scene.pointerX, scene.pointerY,
         (mesh) => mesh.name === 'floor');
 
       if (pickResult?.hit && pickResult.pickedPoint) {
-        // PlayerController will handle the click via colyseusManager
-        // The click point is passed to the player controller in the multiplayer useEffect
         const clickEvent = new CustomEvent('babylonClick', {
           detail: { point: pickResult.pickedPoint }
         });

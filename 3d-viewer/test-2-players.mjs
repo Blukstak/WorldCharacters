@@ -110,6 +110,40 @@ async function main() {
     console.log(`  Canvas: ${status.hasCanvas ? 'Yes' : 'No'}`);
   }
 
+  // Simulate clicks to test pathfinding debug visuals
+  console.log('\n' + '='.repeat(70));
+  console.log('🖱️  TESTING CLICK-TO-MOVE');
+  console.log('='.repeat(70) + '\n');
+
+  // Click on the floor for Player 1 (center-right of the canvas)
+  const canvas1 = await player1.$('canvas');
+  if (canvas1) {
+    const box1 = await canvas1.boundingBox();
+    if (box1) {
+      // Click in the lower-right area of the canvas floor
+      const clickX = box1.x + box1.width * 0.7;
+      const clickY = box1.y + box1.height * 0.65;
+      await player1.mouse.click(clickX, clickY);
+      console.log(`  Player 1: Clicked at screen (${clickX.toFixed(0)}, ${clickY.toFixed(0)})`);
+    }
+  }
+
+  // Click on the floor for Player 2 (center-left of the canvas)
+  const canvas2 = await player2.$('canvas');
+  if (canvas2) {
+    const box2 = await canvas2.boundingBox();
+    if (box2) {
+      const clickX = box2.x + box2.width * 0.3;
+      const clickY = box2.y + box2.height * 0.7;
+      await player2.mouse.click(clickX, clickY);
+      console.log(`  Player 2: Clicked at screen (${clickX.toFixed(0)}, ${clickY.toFixed(0)})`);
+    }
+  }
+
+  // Wait for movement to start and debug visuals to appear
+  console.log('  Waiting 2s for pathfinding debug visuals...');
+  await new Promise(r => setTimeout(r, 2000));
+
   // Take screenshots
   console.log('\n' + '='.repeat(70));
   console.log('📸 TAKING SCREENSHOTS');

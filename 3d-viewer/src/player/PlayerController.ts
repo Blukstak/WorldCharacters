@@ -1,4 +1,7 @@
-import { Scene, Vector3, AnimationGroup, AbstractMesh, SceneLoader } from '@babylonjs/core';
+import {
+  Scene, Vector3, AnimationGroup, AbstractMesh, SceneLoader,
+  MeshBuilder, StandardMaterial, Color3, Mesh,
+} from '@babylonjs/core';
 import { PathfindingManager } from '../pathfinding/PathfindingManager';
 import type { ColyseusManager } from '../multiplayer/ColyseusManager';
 
@@ -28,6 +31,11 @@ export class PlayerController {
   private lastPositionUpdate = 0;
   private positionUpdateInterval = 50; // 20 Hz
 
+  // Debug visuals
+  private debugClickMarker: Mesh | null = null;
+  private debugPathLines: Mesh | null = null;
+  private debugWaypointMarkers: Mesh[] = [];
+
   constructor(
     scene: Scene,
     modelPath: string | File,
@@ -55,7 +63,7 @@ export class PlayerController {
       this.animationGroups = result.animationGroups;
 
       // Normalize model height so all characters are the same size
-      const TARGET_HEIGHT = 1.8; // Standard character height in world units
+      const TARGET_HEIGHT = 1.8;
       const bounds = this.mesh.getHierarchyBoundingVectors();
       const currentHeight = bounds.max.y - bounds.min.y;
       if (currentHeight > 0) {
@@ -80,8 +88,7 @@ export class PlayerController {
         this.currentAnimation = this.walkAnimation.name;
       }
 
-      // Get spawn position from server (will be set via updateFromServer)
-      // For now, set to origin - the server will send the correct position
+      // Set to origin - the server will send the correct position
       this.position = new Vector3(0, 0, 0);
       if (this.mesh) {
         this.mesh.position = this.position.clone();
@@ -132,6 +139,9 @@ export class PlayerController {
       const smoothPath = this.pathfinding.smoothPath(path);
       this.followPath(smoothPath);
 
+      // Show debug visuals
+      this.showDebugVisuals(destination, validDestination, smoothPath);
+
       // Broadcast move command to server
       if (this.colyseusManager) {
         this.colyseusManager.sendMoveCommand(validDestination);
@@ -139,6 +149,74 @@ export class PlayerController {
     } else {
       console.warn('[PlayerController] No path found to destination');
     }
+  }
+
+  /**
+   * Show debug visuals for click point, destination, and path
+   */
+  private showDebugVisuals(clickPoint: Vector3, destination: Vector3, path: Vector3[]): void {
+    this.clearDebugVisuals();
+
+    // Click destination marker - yellow disc on the ground
+    this.debugClickMarker = MeshBuilder.CreateDisc('debugClickMarker', { radius: 0.3 }, this.scene);
+    this.debugClickMarker.rotation.x = Math.PI / 2; // Lay flat
+    this.debugClickMarker.position = new Vector3(destination.x, 0.05, destination.z);
+    const markerMat = new StandardMaterial('debugClickMat', this.scene);
+    markerMat.diffuseColor = new Color3(1, 1, 0); // Yellow
+    markerMat.emissiveColor = new Color3(0.5, 0.5, 0);
+    markerMat.alpha = 0.7;
+    this.debugClickMarker.material = markerMat;
+
+    // If click was snapped to a different position, show original click as red marker
+    if (Vector3.Distance(clickPoint, destination) > 0.1) {
+      const origMarker = MeshBuilder.CreateDisc('debugOrigClick', { radius: 0.2 }, this.scene);
+      origMarker.rotation.x = Math.PI / 2;
+      origMarker.position = new Vector3(clickPoint.x, 0.05, clickPoint.z);
+      const origMat = new StandardMaterial('debugOrigClickMat', this.scene);
+      origMat.diffuseColor = new Color3(1, 0, 0); // Red
+      origMat.emissiveColor = new Color3(0.5, 0, 0);
+      origMat.alpha = 0.5;
+      origMarker.material = origMat;
+      this.debugWaypointMarkers.push(origMarker);
+    }
+
+    // Path line from current position through all waypoints
+    const fullPath = [this.position.clone(), ...path];
+    const linePoints = fullPath.map(p => new Vector3(p.x, 0.08, p.z));
+
+    if (linePoints.length >= 2) {
+      this.debugPathLines = MeshBuilder.CreateLines('debugPathLine', {
+        points: linePoints,
+      }, this.scene);
+      this.debugPathLines.color = new Color3(0, 1, 0.5); // Cyan-green
+    }
+
+    // Waypoint markers - small cyan spheres at intermediate waypoints
+    for (let i = 0; i < path.length - 1; i++) {
+      const wpMarker = MeshBuilder.CreateSphere(`debugWP_${i}`, { diameter: 0.2 }, this.scene);
+      wpMarker.position = new Vector3(path[i].x, 0.1, path[i].z);
+      const wpMat = new StandardMaterial(`debugWPMat_${i}`, this.scene);
+      wpMat.diffuseColor = new Color3(0, 0.8, 1); // Cyan
+      wpMat.emissiveColor = new Color3(0, 0.3, 0.5);
+      wpMarker.material = wpMat;
+      this.debugWaypointMarkers.push(wpMarker);
+    }
+  }
+
+  /**
+   * Clear all debug visuals
+   */
+  private clearDebugVisuals(): void {
+    if (this.debugClickMarker) {
+      this.debugClickMarker.dispose();
+      this.debugClickMarker = null;
+    }
+    if (this.debugPathLines) {
+      this.debugPathLines.dispose();
+      this.debugPathLines = null;
+    }
+    this.debugWaypointMarkers.forEach(m => m.dispose());
+    this.debugWaypointMarkers = [];
   }
 
   /**
@@ -183,9 +261,9 @@ export class PlayerController {
     direction.normalize();
     this.position.addInPlace(direction.scale(this.moveSpeed));
 
-    // Rotate to face direction
+    // Rotate to face movement direction (with angle wrapping)
     const targetRotationY = Math.atan2(direction.x, direction.z);
-    this.rotation.y = this.lerp(this.rotation.y, targetRotationY, this.rotationSpeed);
+    this.rotation.y = this.lerpAngle(this.rotation.y, targetRotationY, this.rotationSpeed);
 
     // Update mesh position and rotation
     if (this.mesh) {
@@ -203,6 +281,9 @@ export class PlayerController {
   private stopMovement(): void {
     this.isMoving = false;
     this.path = [];
+
+    // Clear debug visuals when destination reached
+    this.clearDebugVisuals();
 
     // Stop walk animation
     if (this.walkAnimation && this.walkAnimation.isPlaying) {
@@ -240,10 +321,16 @@ export class PlayerController {
   }
 
   /**
-   * Linear interpolation helper
+   * Angle-aware linear interpolation (handles wrapping around PI/-PI)
    */
-  private lerp(start: number, end: number, factor: number): number {
-    return start + (end - start) * factor;
+  private lerpAngle(start: number, end: number, factor: number): number {
+    let delta = end - start;
+
+    // Normalize to [-PI, PI] so we always take the shortest rotation
+    while (delta > Math.PI) delta -= 2 * Math.PI;
+    while (delta < -Math.PI) delta += 2 * Math.PI;
+
+    return start + delta * factor;
   }
 
   /**
@@ -264,6 +351,8 @@ export class PlayerController {
    * Cleanup
    */
   dispose(): void {
+    this.clearDebugVisuals();
+
     if (this.mesh) {
       this.mesh.dispose();
     }
