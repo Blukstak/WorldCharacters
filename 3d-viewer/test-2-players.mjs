@@ -38,7 +38,7 @@ async function main() {
 
   player1.on('console', msg => {
     const text = msg.text();
-    if (text.includes('[ColyseusManager]') || text.includes('[Multiplayer]')) {
+    if (text.includes('[ColyseusManager]') || text.includes('[Multiplayer]') || text.includes('[VideoStream]') || text.includes('[RemotePlayer]')) {
       console.log(`  [P1] ${text}`);
     }
   });
@@ -65,7 +65,7 @@ async function main() {
 
   player2.on('console', msg => {
     const text = msg.text();
-    if (text.includes('[ColyseusManager]') || text.includes('[Multiplayer]')) {
+    if (text.includes('[ColyseusManager]') || text.includes('[Multiplayer]') || text.includes('[VideoStream]') || text.includes('[RemotePlayer]')) {
       console.log(`  [P2] ${text}`);
     }
   });

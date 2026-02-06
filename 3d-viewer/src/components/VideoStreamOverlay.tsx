@@ -3,12 +3,77 @@ import {
   Room,
   RoomEvent,
   Track,
+  LocalVideoTrack,
   VideoPresets,
   type RemoteParticipant,
   type LocalTrackPublication,
 } from 'livekit-client';
 import { generateToken } from '../livekit/token';
 import { LIVEKIT_CONFIG } from '../livekit/config';
+
+/**
+ * Create an animated canvas placeholder video track.
+ * Draws a color-cycling gradient with the participant name.
+ */
+function createPlaceholderVideoTrack(name: string): { track: MediaStreamTrack; stop: () => void } {
+  const canvas = document.createElement('canvas');
+  canvas.width = 320;
+  canvas.height = 240;
+  const ctx = canvas.getContext('2d')!;
+  let frame = 0;
+  let stopped = false;
+
+  const draw = () => {
+    if (stopped) return;
+    frame++;
+    const t = frame / 60;
+
+    // Animated gradient background
+    const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    const hue1 = (t * 30) % 360;
+    const hue2 = (hue1 + 120) % 360;
+    grad.addColorStop(0, `hsl(${hue1}, 70%, 30%)`);
+    grad.addColorStop(1, `hsl(${hue2}, 70%, 30%)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Animated circles
+    for (let i = 0; i < 5; i++) {
+      const x = canvas.width / 2 + Math.cos(t + i * 1.2) * 80;
+      const y = canvas.height / 2 + Math.sin(t * 0.7 + i * 1.5) * 50;
+      const r = 15 + Math.sin(t * 2 + i) * 8;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${(hue1 + i * 60) % 360}, 80%, 60%, 0.6)`;
+      ctx.fill();
+    }
+
+    // Name label
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, canvas.width / 2, canvas.height - 20);
+
+    // "Placeholder" label
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText('Placeholder Video', canvas.width / 2, 20);
+
+    requestAnimationFrame(draw);
+  };
+  draw();
+
+  const stream = canvas.captureStream(30);
+  const track = stream.getVideoTracks()[0];
+
+  return {
+    track,
+    stop: () => {
+      stopped = true;
+      track.stop();
+    },
+  };
+}
 
 interface VideoStreamOverlayProps {
   roomName?: string;
@@ -132,12 +197,28 @@ export function VideoStreamOverlay({
         // Notify parent that room is ready for multiplayer
         onRoomReady?.(room);
 
-        // Try to enable camera/mic but don't fail if unavailable
+        // Try real camera first, fall back to animated placeholder
+        let cameraOk = false;
         try {
           await room.localParticipant.setCameraEnabled(true);
+          cameraOk = true;
         } catch (camErr) {
-          console.warn('[VideoStream] Camera unavailable:', camErr);
+          console.warn('[VideoStream] Camera unavailable, using placeholder:', camErr);
         }
+
+        if (!cameraOk) {
+          // Publish animated canvas as a placeholder video track
+          try {
+            const placeholder = createPlaceholderVideoTrack(name);
+            const localTrack = new LocalVideoTrack(placeholder.track);
+            await room.localParticipant.publishTrack(localTrack);
+            console.log('[VideoStream] Published placeholder video track');
+          } catch (placeholderErr) {
+            console.warn('[VideoStream] Failed to publish placeholder:', placeholderErr);
+          }
+        }
+
+        // Try microphone but don't fail if unavailable
         try {
           await room.localParticipant.setMicrophoneEnabled(true);
         } catch (micErr) {

@@ -4,6 +4,7 @@ import { Player } from '../schema/Player';
 
 export class GameRoom extends Room<GameState> {
   maxClients = 20;
+  private modelIndex = 0;
 
   onCreate(options: any) {
     this.setState(new GameState());
@@ -69,13 +70,13 @@ export class GameRoom extends Room<GameState> {
     player.id = client.sessionId;
     player.name = options.name || `Player-${client.sessionId.substr(0, 6)}`;
 
-    // Random model selection for visual variety
+    // Alternate model selection for visual variety
     const AVAILABLE_MODELS = [
       '/models/GreenGuy_Animated.glb',
       '/models/BusinessMan.glb',
     ];
     player.modelPath = options.modelPath ||
-      AVAILABLE_MODELS[Math.floor(Math.random() * AVAILABLE_MODELS.length)];
+      AVAILABLE_MODELS[this.modelIndex++ % AVAILABLE_MODELS.length];
 
     // Random spawn position to avoid players overlapping
     const spawnRadius = 10;
