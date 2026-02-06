@@ -18,6 +18,7 @@ import '@babylonjs/loaders/glTF';
 import { PathfindingManager } from '../pathfinding/PathfindingManager';
 import { PlayerController } from '../player/PlayerController';
 import { RemotePlayer } from '../player/RemotePlayer';
+import { BusinessCardPopup } from './BusinessCardPopup';
 import type { ColyseusManager } from '../multiplayer/ColyseusManager';
 import type { Player as PlayerSchema } from '../../../colyseus-server/src/schema/Player';
 
@@ -43,6 +44,7 @@ export function BabylonViewer({
   const sceneRef = useRef<Scene | null>(null);
   const [diagnostics, setDiagnostics] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [businessCardProfileIndex, setBusinessCardProfileIndex] = useState<number | null>(null);
   const originalMeshesRef = useRef<AbstractMesh[]>([]);
   const demoInstancesRef = useRef<TransformNode[]>([]);
   const animationGroupsRef = useRef<AnimationGroup[]>([]);
@@ -90,17 +92,35 @@ export function BabylonViewer({
     const light = new HemisphericLight('light', new Vector3(0, 1, 0), scene);
     light.intensity = 0.7;
 
-    // Click handler for multiplayer mode
+    // Click handler for multiplayer mode - two-phase: character pick first, then floor
     const handleCanvasClick = () => {
       if (!multiplayerMode || !colyseusManager) return;
 
-      // Use scene.pointerX/Y which are canvas-relative (not viewport-relative clientX/Y)
-      const pickResult = scene.pick(scene.pointerX, scene.pointerY,
+      // Phase 1: Unpredicated pick to check for character clicks
+      const characterPick = scene.pick(scene.pointerX, scene.pointerY);
+      if (characterPick?.hit && characterPick.pickedMesh) {
+        // Walk up parent hierarchy looking for player metadata
+        let current: AbstractMesh | TransformNode | null = characterPick.pickedMesh;
+        while (current) {
+          if (current.metadata?.playerType) {
+            // Found a player mesh - show business card
+            const charEvent = new CustomEvent('babylonCharacterClick', {
+              detail: { profileIndex: current.metadata.profileIndex }
+            });
+            canvas.dispatchEvent(charEvent);
+            return; // Don't process as floor click
+          }
+          current = current.parent as AbstractMesh | TransformNode | null;
+        }
+      }
+
+      // Phase 2: Floor-only pick for movement
+      const floorPick = scene.pick(scene.pointerX, scene.pointerY,
         (mesh) => mesh.name === 'floor');
 
-      if (pickResult?.hit && pickResult.pickedPoint) {
+      if (floorPick?.hit && floorPick.pickedPoint) {
         const clickEvent = new CustomEvent('babylonClick', {
-          detail: { point: pickResult.pickedPoint }
+          detail: { point: floorPick.pickedPoint }
         });
         canvas.dispatchEvent(clickEvent);
       }
@@ -709,19 +729,23 @@ export function BabylonViewer({
 
     addDiagnostic('[Multiplayer] Pathfinding initialized');
 
-    // Get server-assigned model path for local player
+    // Get server-assigned model path and profile index for local player
     const currentRoom = colyseusManager.getRoom();
     let localModelPath: string | File = modelFile;
+    let localProfileIndex = 0;
     if (currentRoom) {
       const localPlayerState = currentRoom.state.players.get(currentRoom.sessionId);
       if (localPlayerState?.modelPath) {
         localModelPath = localPlayerState.modelPath;
         console.log('[Multiplayer] Using server-assigned model:', localModelPath);
       }
+      if (localPlayerState?.profileIndex !== undefined) {
+        localProfileIndex = localPlayerState.profileIndex;
+      }
     }
 
     // Initialize local player controller with server-assigned model
-    const localPlayer = new PlayerController(scene, localModelPath, pathfinding, colyseusManager);
+    const localPlayer = new PlayerController(scene, localModelPath, pathfinding, colyseusManager, localProfileIndex);
 
     // Expose to window for testing
     (window as any).localPlayerRef = { current: localPlayer };
@@ -729,23 +753,34 @@ export function BabylonViewer({
 
     addDiagnostic('[Multiplayer] Local player controller initialized');
 
-    // Handle canvas clicks for movement
+    // Handle canvas clicks for movement (also closes business card)
     const handleBabylonClick = (event: Event) => {
       const customEvent = event as CustomEvent;
       if (customEvent.detail && customEvent.detail.point) {
+        setBusinessCardProfileIndex(null); // Close any open card on floor click
         localPlayer.handleClick(customEvent.detail.point);
         addDiagnostic(`[Multiplayer] Click at (${customEvent.detail.point.x.toFixed(1)}, ${customEvent.detail.point.z.toFixed(1)})`);
       }
     };
 
+    // Handle character clicks for business card popup
+    const handleCharacterClick = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.profileIndex !== undefined) {
+        setBusinessCardProfileIndex(customEvent.detail.profileIndex);
+        addDiagnostic(`[Multiplayer] Character clicked - showing business card (profile ${customEvent.detail.profileIndex})`);
+      }
+    };
+
     canvas.addEventListener('babylonClick', handleBabylonClick);
+    canvas.addEventListener('babylonCharacterClick', handleCharacterClick);
 
     // Handle remote players joining
     colyseusManager.onRemotePlayerJoined((sessionId: string, player: PlayerSchema) => {
       addDiagnostic(`[Multiplayer] Remote player joined: ${player.name} (${sessionId})`);
       try {
         console.log(`🔧 [Multiplayer] Creating RemotePlayer for ${sessionId}...`);
-        const remotePlayer = new RemotePlayer(scene, sessionId, player.modelPath);
+        const remotePlayer = new RemotePlayer(scene, sessionId, player.modelPath, player.profileIndex);
         console.log(`🔧 [Multiplayer] RemotePlayer created successfully for ${sessionId}`);
         colyseusManager.registerRemotePlayer(sessionId, remotePlayer);
         console.log(`🔧 [Multiplayer] RemotePlayer registered for ${sessionId}`);
@@ -762,7 +797,7 @@ export function BabylonViewer({
           addDiagnostic(`[Multiplayer] Processing existing player: ${player.name} (${sessionId})`);
           try {
             console.log(`🔧 [Multiplayer] Creating RemotePlayer for existing player ${sessionId}...`);
-            const remotePlayer = new RemotePlayer(scene, sessionId, player.modelPath);
+            const remotePlayer = new RemotePlayer(scene, sessionId, player.modelPath, player.profileIndex);
             console.log(`🔧 [Multiplayer] RemotePlayer created successfully for existing player ${sessionId}`);
             colyseusManager.registerRemotePlayer(sessionId, remotePlayer);
             console.log(`🔧 [Multiplayer] RemotePlayer registered for existing player ${sessionId}`);
@@ -784,6 +819,8 @@ export function BabylonViewer({
     return () => {
       scene.onBeforeRenderObservable.remove(updateObserver);
       canvas.removeEventListener('babylonClick', handleBabylonClick);
+      canvas.removeEventListener('babylonCharacterClick', handleCharacterClick);
+      setBusinessCardProfileIndex(null);
       localPlayer.dispose();
       colyseusManager.disconnect();
 
@@ -827,6 +864,12 @@ export function BabylonViewer({
             <div key={idx} className="mb-1">{msg}</div>
           ))}
         </div>
+      )}
+      {businessCardProfileIndex !== null && (
+        <BusinessCardPopup
+          profileIndex={businessCardProfileIndex}
+          onClose={() => setBusinessCardProfileIndex(null)}
+        />
       )}
     </div>
   );

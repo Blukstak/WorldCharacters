@@ -18,8 +18,12 @@
     }
   },
 
-  "forwardPorts": [5173, 5174, 6080, 9009],
+  "forwardPorts": [2567, 5173, 5174, 6080, 9009],
   "portsAttributes": {
+    "2567": {
+      "label": "Colyseus Server (WebSocket)",
+      "onAutoForward": "notify"
+    },
     "5173": {
       "label": "LiveKit Stream (Vite)",
       "onAutoForward": "notify"

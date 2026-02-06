@@ -22,4 +22,7 @@ export class Player extends Schema {
   @type("boolean") isMoving: boolean = false;
 
   @type("number") timestamp: number = 0;
+
+  // Profile index for business card assignment
+  @type("number") profileIndex: number = 0;
 }

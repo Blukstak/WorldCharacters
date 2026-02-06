@@ -31,6 +31,8 @@ export class PlayerController {
   private lastPositionUpdate = 0;
   private positionUpdateInterval = 50; // 20 Hz
 
+  public profileIndex: number = 0;
+
   // Debug visuals
   private debugClickMarker: Mesh | null = null;
   private debugPathLines: Mesh | null = null;
@@ -40,11 +42,13 @@ export class PlayerController {
     scene: Scene,
     modelPath: string | File,
     pathfinding: PathfindingManager,
-    colyseusManager: ColyseusManager | null
+    colyseusManager: ColyseusManager | null,
+    profileIndex: number = 0
   ) {
     this.scene = scene;
     this.pathfinding = pathfinding;
     this.colyseusManager = colyseusManager;
+    this.profileIndex = profileIndex;
 
     this.loadModel(modelPath);
   }
@@ -64,6 +68,14 @@ export class PlayerController {
 
       // GLB imports set rotationQuaternion which overrides .rotation - clear it
       this.mesh.rotationQuaternion = null;
+
+      // Tag mesh for click detection (business card popup)
+      this.mesh.metadata = {
+        ...this.mesh.metadata,
+        playerType: 'local',
+        sessionId: this.colyseusManager?.getRoom()?.sessionId || 'local',
+        profileIndex: this.profileIndex,
+      };
 
       // Normalize model height so all characters are the same size
       const TARGET_HEIGHT = 1.8;

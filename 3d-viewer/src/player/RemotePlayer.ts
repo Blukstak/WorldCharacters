@@ -32,10 +32,13 @@ export class RemotePlayer {
   private velocity: Vector3 = Vector3.Zero();
   private enablePrediction = true;
 
-  constructor(scene: Scene, identity: string, modelPath: string) {
+  public profileIndex: number = 0;
+
+  constructor(scene: Scene, identity: string, modelPath: string, profileIndex: number = 0) {
     this.scene = scene;
     this.identity = identity;
     this.modelPath = modelPath;
+    this.profileIndex = profileIndex;
 
     this.loadModel();
   }
@@ -60,6 +63,14 @@ export class RemotePlayer {
 
       // GLB imports set rotationQuaternion which overrides .rotation - clear it
       this.mesh.rotationQuaternion = null;
+
+      // Tag mesh for click detection (business card popup)
+      this.mesh.metadata = {
+        ...this.mesh.metadata,
+        playerType: 'remote',
+        sessionId: this.identity,
+        profileIndex: this.profileIndex,
+      };
 
       // Normalize model height so all characters are the same size
       const TARGET_HEIGHT = 1.8;

@@ -12,6 +12,7 @@ services:
       - ../:/WorldCharacters:cached
 
     ports:
+      - "2567:2567"   # Colyseus multiplayer server
       - "5173:5173"   # livekit-stream Vite dev server
       - "5174:5174"   # 3d-viewer Vite dev server
       - "6080:6080"   # noVNC (browser visible from Windows)

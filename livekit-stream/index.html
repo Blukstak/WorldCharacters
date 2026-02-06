@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WorldCharacters - LiveKit Stream</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="join-form">
+      <h1>LiveKit Stream</h1>
+      <div class="form-group">
+        <label for="room-name">Room Name</label>
+        <input type="text" id="room-name" value="demo" />
+      </div>
+      <div class="form-group">
+        <label for="participant-name">Your Name</label>
+        <input type="text" id="participant-name" placeholder="Enter your name" />
+      </div>
+      <div class="button-group">
+        <button id="btn-publish">Join as Publisher</button>
+        <button id="btn-viewer">Join as Viewer</button>
+      </div>
+      <p class="server-info">Server: wss://livekit.jpsoft.io</p>
+    </div>
+
+    <div id="room-view" style="display: none;">
+      <div id="room-header">
+        <span id="room-title"></span>
+        <span id="participant-count"></span>
+      </div>
+      <div id="video-grid"></div>
+      <div id="controls">
+        <button id="btn-toggle-mic" title="Toggle Microphone">Mic On</button>
+        <button id="btn-toggle-camera" title="Toggle Camera">Camera On</button>
+        <button id="btn-leave" title="Leave Room">Leave</button>
+      </div>
+      <div id="status-bar"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

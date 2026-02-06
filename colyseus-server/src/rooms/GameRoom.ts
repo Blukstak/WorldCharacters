@@ -77,6 +77,7 @@ export class GameRoom extends Room<GameState> {
     ];
     player.modelPath = options.modelPath ||
       AVAILABLE_MODELS[this.modelIndex++ % AVAILABLE_MODELS.length];
+    player.profileIndex = this.modelIndex - 1; // assign based on join order
 
     // Random spawn position to avoid players overlapping
     const spawnRadius = 10;
@@ -97,6 +98,7 @@ export class GameRoom extends Room<GameState> {
       sessionId: client.sessionId,
       name: player.name,
       modelPath: player.modelPath,
+      profileIndex: player.profileIndex,
       x: player.x,
       y: player.y,
       z: player.z,
