@@ -15,6 +15,14 @@ export default defineConfig(async () => ({
     },
   },
 
+  // Optimize Babylon.js dependencies
+  optimizeDeps: {
+    include: ['@babylonjs/core', '@babylonjs/loaders'],
+    esbuildOptions: {
+      target: 'es2020',
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
@@ -23,7 +31,7 @@ export default defineConfig(async () => ({
   server: {
     port: 5174,
     strictPort: false,
-    host: host || false,
+    host: host || "0.0.0.0",
     hmr: host
       ? {
           protocol: "ws",

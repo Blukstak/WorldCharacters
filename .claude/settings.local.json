@@ -4,10 +4,15 @@
       "mcp__blender__get_scene_info",
       "mcp__blender__get_viewport_screenshot",
       "mcp__blender__execute_blender_code",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:docs.browsermcp.io)",
+      "mcp__browsermcp__browser_screenshot",
+      "mcp__browsermcp__browser_get_console_logs"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "blender"
+    "blender",
+    "browsermcp"
   ]
 }
