@@ -63,6 +63,9 @@ export class PlayerController {
       this.mesh = result.meshes[0];
       this.animationGroups = result.animationGroups;
 
+      // GLB imports set rotationQuaternion which overrides .rotation - clear it
+      this.mesh.rotationQuaternion = null;
+
       // Normalize model height so all characters are the same size
       const TARGET_HEIGHT = 1.8;
       const bounds = this.mesh.getHierarchyBoundingVectors();

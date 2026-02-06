@@ -58,6 +58,9 @@ export class RemotePlayer {
       this.animationGroups = result.animationGroups;
       this.modelLoaded = true;
 
+      // GLB imports set rotationQuaternion which overrides .rotation - clear it
+      this.mesh.rotationQuaternion = null;
+
       // Normalize model height so all characters are the same size
       const TARGET_HEIGHT = 1.8;
       const bounds = this.mesh.getHierarchyBoundingVectors();
