@@ -1,5 +1,7 @@
 # Browser MCP in the Dev Container
 
+> **Quick Start:** For React/Vue/Angular apps with dynamic UI, skip to [Puppeteer via Chrome DevTools Protocol](#alternative-puppeteer-via-chrome-devtools-protocol-) for reliable automation.
+
 ## How Browser MCP works
 
 Browser MCP has three components that form a communication chain:
@@ -136,9 +138,9 @@ The project root is mounted into the container at `/WorldCharacters` via the vol
 4. Navigate to the page you want to control, open the extension, and click **Connect**.
 5. Browser MCP tools should now appear in your Claude Code session.
 
-## Alternative: Puppeteer via Chrome DevTools Protocol (WIP)
+## Alternative: Puppeteer via Chrome DevTools Protocol ✅
 
-**Status:** Work in progress - Chrome connection verified, Puppeteer test script not yet implemented.
+**Status:** Working - Successfully tested with 3D viewer model switching.
 
 ### Why Puppeteer?
 
@@ -147,7 +149,7 @@ Browser MCP has limitations when interacting with React SPAs:
 - Cannot reliably click buttons that trigger re-renders
 - Poor support for dynamic modals/dialogs
 
-Puppeteer uses Chrome DevTools Protocol (CDP), which is more stable and designed for programmatic browser automation.
+Puppeteer uses Chrome DevTools Protocol (CDP), which is more stable and designed for programmatic browser automation. **Testing confirmed Puppeteer successfully handles React state changes that cause Browser MCP to timeout.**
 
 ### Setup
 
@@ -161,9 +163,9 @@ Puppeteer uses Chrome DevTools Protocol (CDP), which is more stable and designed
 **Important flags:**
 - `--remote-debugging-port=9222` - Opens CDP WebSocket server
 - `--remote-debugging-address=0.0.0.0` - Binds to all interfaces (accessible from Docker)
-- `--user-data-dir` - Separate profile to avoid conflicts
+- `--user-data-dir` - Separate profile to avoid conflicts with main Chrome instance
 
-**2. Connection verified from devcontainer:**
+**2. Verify connection from devcontainer:**
 
 ```bash
 # Windows host is accessible via special hostname
@@ -179,24 +181,89 @@ $ curl http://192.168.65.254:9222/json/version
 }
 ```
 
-**3. Connect with Puppeteer (TODO):**
+**3. Install puppeteer-core:**
 
-```javascript
-const puppeteer = require('puppeteer-core');
-
-const browser = await puppeteer.connect({
-  browserURL: 'http://192.168.65.254:9222'
-});
-
-const page = await browser.newPage();
-await page.goto('http://localhost:5174'); // Vite dev server
-await page.click('button:has-text("Models")'); // Works reliably!
-await page.screenshot({ path: 'screenshot.png' });
+```bash
+cd /WorldCharacters/3d-viewer
+npm install --save-dev puppeteer-core
 ```
 
-### TODO
+**Note:** Use `puppeteer-core` instead of `puppeteer` - it's lighter as it doesn't bundle Chromium.
 
-- [ ] Install puppeteer-core in devcontainer
-- [ ] Create test script for 3D viewer model switching
-- [ ] Verify it can click through React modals
-- [ ] Document any Windows Firewall issues (if any)
+### Usage
+
+**Test script location:** [3d-viewer/test-puppeteer.mjs](3d-viewer/test-puppeteer.mjs)
+
+```bash
+# Run the model selector test
+cd /WorldCharacters/3d-viewer
+node test-puppeteer.mjs
+```
+
+**What the test does:**
+1. Connects to Chrome via CDP at `192.168.65.254:9222`
+2. Finds or creates page at `http://localhost:5174`
+3. Clicks the "Models" button (React state change)
+4. Clicks "Business Man" model card
+5. Waits for 3D model to load
+6. Switches back to "Green Guy" model
+7. Takes screenshots at each step → `/WorldCharacters/screenshots/`
+
+### Code Example
+
+```javascript
+import puppeteer from 'puppeteer-core';
+
+const CHROME_HOST = '192.168.65.254';
+const CHROME_PORT = 9222;
+
+// Connect to existing Chrome instance
+const browser = await puppeteer.connect({
+  browserURL: `http://${CHROME_HOST}:${CHROME_PORT}`,
+  defaultViewport: null,
+});
+
+const pages = await browser.pages();
+const page = pages.find(p => p.url().includes('localhost:5174'))
+  || await browser.newPage();
+
+// Click React buttons using page.evaluate()
+await page.evaluate(() => {
+  const buttons = Array.from(document.querySelectorAll('button'));
+  const modelsButton = buttons.find(btn => btn.textContent.includes('Models'));
+  modelsButton.click();
+});
+
+// Wait for React state update
+await new Promise(resolve => setTimeout(resolve, 1000));
+
+// Take screenshot
+await page.screenshot({ path: '/WorldCharacters/screenshots/result.png' });
+
+// Don't close browser, just disconnect
+await browser.disconnect();
+```
+
+### Key Differences from Browser MCP
+
+| Feature | Browser MCP | Puppeteer CDP |
+|---------|-------------|---------------|
+| **React state changes** | ❌ Timeouts | ✅ Works reliably |
+| **Click buttons** | ❌ Unreliable | ✅ Using `page.evaluate()` |
+| **Dynamic modals** | ❌ Cannot detect | ✅ Full DOM access |
+| **Screenshot quality** | ✅ Good | ✅ Excellent |
+| **Setup complexity** | Simple (extension) | Moderate (launch flags) |
+| **Browser control** | Active tab only | Full browser instance |
+
+### Network Notes
+
+- No Windows Firewall configuration needed
+- Uses Docker's built-in `host.docker.internal` networking
+- Chrome's `--remote-debugging-address=0.0.0.0` makes it accessible from Docker
+- No port forwarding required in devcontainer.json or docker-compose.yml
+
+### Recommendations
+
+- **Use Browser MCP for:** Simple navigation, screenshots, reading page content
+- **Use Puppeteer for:** React/Vue/Angular apps, complex interactions, automated testing
+- Both can coexist - Browser MCP for quick inspections, Puppeteer for reliable automation
