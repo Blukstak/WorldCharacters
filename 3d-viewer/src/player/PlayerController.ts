@@ -124,20 +124,18 @@ export class PlayerController {
   }
 
   /**
-   * Create a direction arrow above the character to show facing
+   * Create a direction arrow above the character to show facing.
+   * Not parented to mesh (avoids GLB scaling/rotation issues).
+   * Updated manually in the update loop.
    */
   private createDirectionArrow(): void {
-    // Cone pointing forward (along +Z in local space, will rotate with parent)
+    // Cone pointing up by default; we'll rotate it each frame to match movement
     const arrow = MeshBuilder.CreateCylinder('dirArrow', {
       diameterTop: 0,
       diameterBottom: 0.3,
       height: 0.5,
       tessellation: 8,
     }, this.scene);
-    // Rotate cone to point forward along -Z (model's default forward)
-    arrow.rotation.x = -Math.PI / 2;
-    arrow.position.y = 2.2; // Above the character head
-    arrow.position.z = -0.3; // Slightly in front
 
     const arrowMat = new StandardMaterial('dirArrowMat', this.scene);
     arrowMat.diffuseColor = new Color3(0, 1, 0.5);
@@ -145,12 +143,30 @@ export class PlayerController {
     arrowMat.alpha = 0.8;
     arrow.material = arrowMat;
 
-    // Parent to the character mesh so it rotates with it
-    if (this.mesh) {
-      arrow.parent = this.mesh;
-    }
+    // Tip cone forward along +Z by rotating around X
+    arrow.rotation.x = Math.PI / 2;
+
+    // Position above character
+    arrow.position = this.position.clone();
+    arrow.position.y = 2.2;
 
     this.debugDirectionArrow = arrow;
+  }
+
+  /**
+   * Update direction arrow position and rotation to match movement
+   */
+  private updateDirectionArrow(direction: Vector3): void {
+    if (!this.debugDirectionArrow) return;
+
+    // Position above character head
+    this.debugDirectionArrow.position.x = this.position.x;
+    this.debugDirectionArrow.position.y = 2.2;
+    this.debugDirectionArrow.position.z = this.position.z;
+
+    // Point the arrow in the movement direction
+    // The cone tip points along +Z (rotation.x = PI/2), so rotation.y aligns it
+    this.debugDirectionArrow.rotation.y = Math.atan2(direction.x, direction.z);
   }
 
   /**
@@ -304,6 +320,9 @@ export class PlayerController {
       this.mesh.position = this.position.clone();
       this.mesh.rotation.y = this.rotation.y;
     }
+
+    // Update direction arrow to point along actual movement
+    this.updateDirectionArrow(direction);
 
     // Broadcast position update (throttled)
     this.broadcastPosition();
