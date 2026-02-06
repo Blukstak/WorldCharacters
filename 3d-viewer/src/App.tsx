@@ -3,7 +3,7 @@ import { BabylonViewer } from './components/BabylonViewer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { ScrollArea } from './components/ui/scroll-area';
-import { Play, Pause, Upload, X, Users, Menu, Maximize, Video } from 'lucide-react';
+import { Play, Pause, Upload, X, Users, Menu, Maximize, Video, Library } from 'lucide-react';
 import { AnimationGroup, AbstractMesh } from '@babylonjs/core';
 import { VideoStreamOverlay } from './components/VideoStreamOverlay';
 import './index.css';
@@ -13,8 +13,28 @@ interface AnimationInfo {
   isPlaying: boolean;
 }
 
+interface ModelInfo {
+  name: string;
+  path: string;
+  description: string;
+}
+
+const AVAILABLE_MODELS: ModelInfo[] = [
+  {
+    name: 'Green Guy',
+    path: '/models/GreenGuy_Animated.glb',
+    description: 'Green animated character',
+  },
+  {
+    name: 'Business Man',
+    path: '/models/BusinessMan.glb',
+    description: 'Professional businessman in suit',
+  },
+];
+
 function App() {
   const [modelFile, setModelFile] = useState<File | string | null>('/models/GreenGuy_Animated.glb');
+  const [showModelSelector, setShowModelSelector] = useState(false);
   const [animations, setAnimations] = useState<AnimationInfo[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,20 +48,20 @@ function App() {
   const handleModelLoaded = useCallback((animationGroups: AnimationGroup[], _meshes: AbstractMesh[]) => {
     animationGroupsRef.current = animationGroups;
 
-    // Filter to only show standard walk and wave animations (exclude move_walk and man_walk)
+    // Filter to show walk and wave animations (accept any walk variation)
     const filteredGroups = animationGroups.filter((group) => {
       const name = (group.name || '').toLowerCase();
-      // Include wave
+      // Include wave animations
       if (name.includes('wave')) return true;
-      // Include only standard_walk, exclude man_walk and move_walk
-      if (name.includes('standard') && name.includes('walk')) return true;
+      // Include any walk animation
+      if (name.includes('walk')) return true;
       return false;
     });
 
-    // Find standard walk animation and auto-play it
+    // Find first walk animation and auto-play it
     const walkIndex = animationGroups.findIndex((group) => {
       const name = (group.name || '').toLowerCase();
-      return name.includes('standard') && name.includes('walk');
+      return name.includes('walk');
     });
 
     const animInfos: AnimationInfo[] = filteredGroups.map((group) => {
@@ -172,6 +192,14 @@ function App() {
     }
   }, []);
 
+  const handleModelSelect = useCallback((modelPath: string) => {
+    setModelFile(modelPath);
+    setShowModelSelector(false);
+    setError(null);
+    setDemoMode(false);
+    setVideoStreamMode(false);
+  }, []);
+
   // Find walk animation index
   const walkAnimationIndex = animations.findIndex((anim) =>
     anim.name.toLowerCase().includes('walk')
@@ -187,17 +215,88 @@ function App() {
             <h1 className="text-xl md:text-2xl font-bold">3D Model Viewer</h1>
             <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Drag and drop GLB files to view</p>
           </div>
-          {modelFile && (
+          <div className="flex gap-2">
             <Button
               variant="outline"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              size="sm"
+              onClick={() => setShowModelSelector(!showModelSelector)}
+              className="hidden sm:flex"
             >
-              <Menu className="w-5 h-5" />
+              <Library className="w-4 h-4 mr-2" />
+              Models
             </Button>
-          )}
+            {modelFile && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="md:hidden"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+            )}
+          </div>
         </header>
+
+        {/* Model Selector Modal */}
+        {showModelSelector && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/50 z-40"
+              onClick={() => setShowModelSelector(false)}
+            />
+            <div className="fixed top-20 left-1/2 -translate-x-1/2 w-full max-w-2xl z-50 p-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Available Models</CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowModelSelector(false)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <CardDescription>
+                    Choose from our collection of 3D models
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {AVAILABLE_MODELS.map((model) => (
+                      <Card
+                        key={model.path}
+                        className={`cursor-pointer transition-all hover:border-primary ${
+                          modelFile === model.path ? 'border-primary bg-primary/5' : ''
+                        }`}
+                        onClick={() => handleModelSelect(model.path)}
+                      >
+                        <CardHeader>
+                          <CardTitle className="text-base">{model.name}</CardTitle>
+                          <CardDescription className="text-sm">
+                            {model.description}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Library className="w-4 h-4" />
+                            <span>{model.path.split('/').pop()}</span>
+                          </div>
+                          {modelFile === model.path && (
+                            <div className="mt-2 text-sm font-medium text-primary">
+                              Currently loaded
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
 
         {/* Viewer Container */}
         <div className="flex-1 p-2 md:p-4" ref={viewerContainerRef}>

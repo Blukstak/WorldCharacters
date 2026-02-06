@@ -126,12 +126,15 @@ export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode 
         // Stop all animations initially
         animations.forEach((anim) => anim.stop());
 
-        // Filter to only show safe animations (Standard_Walk and Wave)
-        // Don't dispose broken animations - just hide them from UI to avoid corrupting mesh data
+        // Log all available animations for debugging
+        console.log('Available animations:', animations.map(a => a.name).join(', '));
+
+        // Filter to show walk and wave animations
+        // Accept any variation of walk animations (Walk, Standard_Walk, etc.)
         const safeAnimations: AnimationGroup[] = [];
         animations.forEach((anim) => {
           const name = (anim.name || '').toLowerCase();
-          const isSafe = name.includes('wave') || (name.includes('standard') && name.includes('walk'));
+          const isSafe = name.includes('wave') || name.includes('walk');
 
           if (isSafe) {
             safeAnimations.push(anim);
@@ -219,14 +222,14 @@ export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode 
           addDiagnostic(`  Mesh ${idx}: "${mesh.name}", parent: ${mesh.parent?.name || 'null'}, enabled: ${mesh.isEnabled()}`);
         });
 
-        // Find the walk animation
+        // Find any walk animation
         const walkAnimation = animations.find(anim => {
           const name = (anim.name || '').toLowerCase();
-          return name.includes('standard') && name.includes('walk');
+          return name.includes('walk');
         });
 
         if (!walkAnimation) {
-          addDiagnostic(`ERROR: Walk animation not found`);
+          addDiagnostic(`ERROR: No walk animation found. Available: ${animations.map(a => a.name).join(', ')}`);
           return;
         }
 
@@ -566,11 +569,11 @@ export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode 
           // Stop all animations initially
           animations.forEach((anim) => anim.stop());
 
-          // Filter to only safe animations
+          // Filter to show walk and wave animations
           const safeAnimations: AnimationGroup[] = [];
           animations.forEach((anim) => {
             const name = (anim.name || '').toLowerCase();
-            const isSafe = name.includes('wave') || (name.includes('standard') && name.includes('walk'));
+            const isSafe = name.includes('wave') || name.includes('walk');
             if (isSafe) {
               safeAnimations.push(anim);
             }
