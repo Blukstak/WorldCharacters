@@ -135,3 +135,68 @@ The project root is mounted into the container at `/WorldCharacters` via the vol
 3. In your Windows browser, install the Browser MCP extension from [browsermcp.io/install](https://browsermcp.io/install).
 4. Navigate to the page you want to control, open the extension, and click **Connect**.
 5. Browser MCP tools should now appear in your Claude Code session.
+
+## Alternative: Puppeteer via Chrome DevTools Protocol (WIP)
+
+**Status:** Work in progress - Chrome connection verified, Puppeteer test script not yet implemented.
+
+### Why Puppeteer?
+
+Browser MCP has limitations when interacting with React SPAs:
+- WebSocket timeouts on state changes
+- Cannot reliably click buttons that trigger re-renders
+- Poor support for dynamic modals/dialogs
+
+Puppeteer uses Chrome DevTools Protocol (CDP), which is more stable and designed for programmatic browser automation.
+
+### Setup
+
+**1. Launch Chrome in Windows with remote debugging:**
+
+```powershell
+# Windows PowerShell or CMD:
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --user-data-dir="C:\temp\chrome-debug"
+```
+
+**Important flags:**
+- `--remote-debugging-port=9222` - Opens CDP WebSocket server
+- `--remote-debugging-address=0.0.0.0` - Binds to all interfaces (accessible from Docker)
+- `--user-data-dir` - Separate profile to avoid conflicts
+
+**2. Connection verified from devcontainer:**
+
+```bash
+# Windows host is accessible via special hostname
+$ getent hosts host.docker.internal
+192.168.65.254 host.docker.internal
+
+# Chrome CDP endpoint is responding
+$ curl http://192.168.65.254:9222/json/version
+{
+   "Browser": "Chrome/144.0.7559.111",
+   "Protocol-Version": "1.3",
+   "webSocketDebuggerUrl": "ws://192.168.65.254:9222/devtools/browser/..."
+}
+```
+
+**3. Connect with Puppeteer (TODO):**
+
+```javascript
+const puppeteer = require('puppeteer-core');
+
+const browser = await puppeteer.connect({
+  browserURL: 'http://192.168.65.254:9222'
+});
+
+const page = await browser.newPage();
+await page.goto('http://localhost:5174'); // Vite dev server
+await page.click('button:has-text("Models")'); // Works reliably!
+await page.screenshot({ path: 'screenshot.png' });
+```
+
+### TODO
+
+- [ ] Install puppeteer-core in devcontainer
+- [ ] Create test script for 3D viewer model switching
+- [ ] Verify it can click through React modals
+- [ ] Document any Windows Firewall issues (if any)
