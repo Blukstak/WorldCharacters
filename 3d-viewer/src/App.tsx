@@ -213,9 +213,10 @@ function App() {
     setMultiplayerMode((prev) => {
       const next = !prev;
       if (next) {
-        // Don't automatically enable video streaming
-        // User can enable it separately if LiveKit is configured
+        setVideoStreamMode(true);
         setDemoMode(false);
+      } else {
+        setVideoStreamMode(false);
       }
       return next;
     });

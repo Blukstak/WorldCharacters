@@ -58,6 +58,15 @@ export class RemotePlayer {
       this.animationGroups = result.animationGroups;
       this.modelLoaded = true;
 
+      // Normalize model height so all characters are the same size
+      const TARGET_HEIGHT = 1.8;
+      const bounds = this.mesh.getHierarchyBoundingVectors();
+      const currentHeight = bounds.max.y - bounds.min.y;
+      if (currentHeight > 0) {
+        const scaleFactor = TARGET_HEIGHT / currentHeight;
+        this.mesh.scaling.setAll(scaleFactor);
+      }
+
       console.log(`[RemotePlayer:${this.identity}] Model loaded with ${this.animationGroups.length} animations`);
 
       // Stop all animations initially

@@ -13,6 +13,8 @@ import { LIVEKIT_CONFIG } from '../livekit/config';
 interface VideoStreamOverlayProps {
   roomName?: string;
   participantName?: string;
+  onRoomReady?: (room: Room) => void;
+  onDataReceived?: (data: Uint8Array, participant: RemoteParticipant) => void;
 }
 
 interface StreamTile {
@@ -24,6 +26,8 @@ interface StreamTile {
 export function VideoStreamOverlay({
   roomName = LIVEKIT_CONFIG.defaultRoom,
   participantName,
+  onRoomReady,
+  onDataReceived,
 }: VideoStreamOverlayProps) {
   const roomRef = useRef<Room | null>(null);
   const [tiles, setTiles] = useState<StreamTile[]>([]);
@@ -86,6 +90,11 @@ export function VideoStreamOverlay({
       setTiles([]);
     });
 
+    room.on(RoomEvent.DataReceived, (data: Uint8Array, participant?: RemoteParticipant) => {
+      if (disposed || !participant) return;
+      onDataReceived?.(data, participant);
+    });
+
     room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
       if (disposed) return;
       if (publication.track && publication.track.kind === Track.Kind.Video) {
@@ -120,10 +129,23 @@ export function VideoStreamOverlay({
         setIsConnected(true);
         setStatus(`Connected as ${name}`);
 
-        await room.localParticipant.setCameraEnabled(true);
-        await room.localParticipant.setMicrophoneEnabled(true);
+        // Notify parent that room is ready for multiplayer
+        onRoomReady?.(room);
+
+        // Try to enable camera/mic but don't fail if unavailable
+        try {
+          await room.localParticipant.setCameraEnabled(true);
+        } catch (camErr) {
+          console.warn('[VideoStream] Camera unavailable:', camErr);
+        }
+        try {
+          await room.localParticipant.setMicrophoneEnabled(true);
+        } catch (micErr) {
+          console.warn('[VideoStream] Microphone unavailable:', micErr);
+        }
       } catch (err) {
         if (disposed) return;
+        console.error('[VideoStream] Connection error:', err);
         setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
       }
     };

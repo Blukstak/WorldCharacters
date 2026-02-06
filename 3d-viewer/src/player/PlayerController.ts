@@ -54,6 +54,16 @@ export class PlayerController {
       this.mesh = result.meshes[0];
       this.animationGroups = result.animationGroups;
 
+      // Normalize model height so all characters are the same size
+      const TARGET_HEIGHT = 1.8; // Standard character height in world units
+      const bounds = this.mesh.getHierarchyBoundingVectors();
+      const currentHeight = bounds.max.y - bounds.min.y;
+      if (currentHeight > 0) {
+        const scaleFactor = TARGET_HEIGHT / currentHeight;
+        this.mesh.scaling.setAll(scaleFactor);
+        console.log(`[PlayerController] Scaled model: ${currentHeight.toFixed(2)} → ${TARGET_HEIGHT} (factor: ${scaleFactor.toFixed(2)})`);
+      }
+
       // Stop all animations initially
       this.animationGroups.forEach(anim => anim.stop());
 
