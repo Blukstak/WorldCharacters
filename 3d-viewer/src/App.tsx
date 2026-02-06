@@ -3,8 +3,9 @@ import { BabylonViewer } from './components/BabylonViewer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { ScrollArea } from './components/ui/scroll-area';
-import { Play, Pause, Upload, X, Users, Menu, Maximize } from 'lucide-react';
+import { Play, Pause, Upload, X, Users, Menu, Maximize, Video } from 'lucide-react';
 import { AnimationGroup, AbstractMesh } from '@babylonjs/core';
+import { VideoStreamOverlay } from './components/VideoStreamOverlay';
 import './index.css';
 
 interface AnimationInfo {
@@ -18,6 +19,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
+  const [videoStreamMode, setVideoStreamMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const animationGroupsRef = useRef<AnimationGroup[]>([]);
@@ -143,6 +145,19 @@ function App() {
 
   const toggleDemoMode = useCallback(() => {
     setDemoMode((prev) => !prev);
+    setVideoStreamMode(false);
+  }, []);
+
+  const toggleVideoStreamMode = useCallback(() => {
+    setVideoStreamMode((prev) => {
+      const next = !prev;
+      if (next) {
+        setDemoMode(true);
+      } else {
+        setDemoMode(false);
+      }
+      return next;
+    });
   }, []);
 
   const handleFullscreen = useCallback(() => {
@@ -232,6 +247,9 @@ function App() {
               >
                 <Maximize className="w-4 h-4" />
               </Button>
+
+              {/* Video stream overlay */}
+              {videoStreamMode && <VideoStreamOverlay />}
             </div>
           )}
         </div>
@@ -300,15 +318,27 @@ function App() {
             {animations.length > 0 && (
               <div className="space-y-2">
                 {walkAnimationIndex >= 0 && (
-                  <Button
-                    variant={demoMode ? "default" : "secondary"}
-                    size="lg"
-                    onClick={toggleDemoMode}
-                    className="w-full"
-                  >
-                    <Users className="w-5 h-5 mr-2" />
-                    {demoMode ? 'Exit Demo Mode' : '100 Characters Demo'}
-                  </Button>
+                  <>
+                    <Button
+                      variant={demoMode && !videoStreamMode ? "default" : "secondary"}
+                      size="lg"
+                      onClick={toggleDemoMode}
+                      className="w-full"
+                      disabled={videoStreamMode}
+                    >
+                      <Users className="w-5 h-5 mr-2" />
+                      {demoMode && !videoStreamMode ? 'Exit Demo Mode' : '100 Characters Demo'}
+                    </Button>
+                    <Button
+                      variant={videoStreamMode ? "default" : "secondary"}
+                      size="lg"
+                      onClick={toggleVideoStreamMode}
+                      className="w-full"
+                    >
+                      <Video className="w-5 h-5 mr-2" />
+                      {videoStreamMode ? 'Exit Video Stream' : 'Video Stream Demo'}
+                    </Button>
+                  </>
                 )}
                 <Button
                   variant="outline"
@@ -359,13 +389,27 @@ function App() {
           {demoMode && (
             <div className="flex-1 px-4 flex items-center justify-center">
               <div className="text-center">
-                <Users className="w-12 md:w-16 h-12 md:h-16 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Demo Mode Active
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  100 characters walking
-                </p>
+                {videoStreamMode ? (
+                  <>
+                    <Video className="w-12 md:w-16 h-12 md:h-16 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Video Stream Active
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Publishing camera &amp; mic
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Users className="w-12 md:w-16 h-12 md:h-16 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Demo Mode Active
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      100 characters walking
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           )}
