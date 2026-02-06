@@ -174,7 +174,8 @@ export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode 
           URL.revokeObjectURL(url);
         }
       });
-  }, [modelFile, onModelLoaded, onLoadError, demoMode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelFile, demoMode]);
 
   // Handle demo mode with 100 walking characters
   useEffect(() => {
