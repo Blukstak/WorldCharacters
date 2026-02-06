@@ -35,6 +35,7 @@ export class PlayerController {
   private debugClickMarker: Mesh | null = null;
   private debugPathLines: Mesh | null = null;
   private debugWaypointMarkers: Mesh[] = [];
+  private debugDirectionArrow: Mesh | null = null;
 
   constructor(
     scene: Scene,
@@ -88,6 +89,9 @@ export class PlayerController {
         this.currentAnimation = this.walkAnimation.name;
       }
 
+      // Create direction arrow above the character
+      this.createDirectionArrow();
+
       // Set to origin - the server will send the correct position
       this.position = new Vector3(0, 0, 0);
       if (this.mesh) {
@@ -117,6 +121,36 @@ export class PlayerController {
     } catch (error) {
       console.error('[PlayerController] Failed to load model:', error);
     }
+  }
+
+  /**
+   * Create a direction arrow above the character to show facing
+   */
+  private createDirectionArrow(): void {
+    // Cone pointing forward (along +Z in local space, will rotate with parent)
+    const arrow = MeshBuilder.CreateCylinder('dirArrow', {
+      diameterTop: 0,
+      diameterBottom: 0.3,
+      height: 0.5,
+      tessellation: 8,
+    }, this.scene);
+    // Rotate cone to point forward along -Z (model's default forward)
+    arrow.rotation.x = -Math.PI / 2;
+    arrow.position.y = 2.2; // Above the character head
+    arrow.position.z = -0.3; // Slightly in front
+
+    const arrowMat = new StandardMaterial('dirArrowMat', this.scene);
+    arrowMat.diffuseColor = new Color3(0, 1, 0.5);
+    arrowMat.emissiveColor = new Color3(0, 0.4, 0.2);
+    arrowMat.alpha = 0.8;
+    arrow.material = arrowMat;
+
+    // Parent to the character mesh so it rotates with it
+    if (this.mesh) {
+      arrow.parent = this.mesh;
+    }
+
+    this.debugDirectionArrow = arrow;
   }
 
   /**
@@ -261,8 +295,8 @@ export class PlayerController {
     direction.normalize();
     this.position.addInPlace(direction.scale(this.moveSpeed));
 
-    // Rotate to face movement direction (with angle wrapping)
-    const targetRotationY = Math.atan2(direction.x, direction.z);
+    // Rotate to face movement direction (models face -Z, so add PI)
+    const targetRotationY = Math.atan2(direction.x, direction.z) + Math.PI;
     this.rotation.y = this.lerpAngle(this.rotation.y, targetRotationY, this.rotationSpeed);
 
     // Update mesh position and rotation
@@ -352,6 +386,11 @@ export class PlayerController {
    */
   dispose(): void {
     this.clearDebugVisuals();
+
+    if (this.debugDirectionArrow) {
+      this.debugDirectionArrow.dispose();
+      this.debugDirectionArrow = null;
+    }
 
     if (this.mesh) {
       this.mesh.dispose();
