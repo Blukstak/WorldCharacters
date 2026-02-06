@@ -102,12 +102,15 @@ export function BabylonViewer({ onModelLoaded, onLoadError, modelFile, demoMode 
     const camera = scene.activeCamera as ArcRotateCamera;
 
     // Clear previous meshes and animations
-    scene.meshes.forEach((mesh) => {
-      if (mesh.name !== '__root__') {
-        mesh.dispose();
-      }
+    // Create a copy of the array since dispose() modifies the scene.meshes array
+    const meshesToDispose = scene.meshes.slice().filter((mesh) => mesh.name !== '__root__');
+    meshesToDispose.forEach((mesh) => {
+      mesh.dispose(false, true); // dispose with doNotRecurse=false, disposeMaterialAndTextures=true
     });
-    scene.animationGroups.forEach((group) => group.dispose());
+
+    // Dispose all animation groups
+    const animationGroupsToDispose = scene.animationGroups.slice();
+    animationGroupsToDispose.forEach((group) => group.dispose());
 
     setIsLoading(true);
 

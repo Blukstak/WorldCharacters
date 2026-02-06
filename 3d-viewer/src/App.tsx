@@ -58,11 +58,20 @@ function App() {
       return false;
     });
 
-    // Find first walk animation and auto-play it
-    const walkIndex = animationGroups.findIndex((group) => {
+    // Find best walk animation and auto-play it
+    // Prefer "standard_walk" if available, otherwise use first walk animation
+    let walkIndex = animationGroups.findIndex((group) => {
       const name = (group.name || '').toLowerCase();
-      return name.includes('walk');
+      return name === 'standard_walk' || name.includes('standard') && name.includes('walk');
     });
+
+    // If no standard_walk found, use first walk animation
+    if (walkIndex === -1) {
+      walkIndex = animationGroups.findIndex((group) => {
+        const name = (group.name || '').toLowerCase();
+        return name.includes('walk');
+      });
+    }
 
     const animInfos: AnimationInfo[] = filteredGroups.map((group) => {
       const groupIndex = animationGroups.indexOf(group);
