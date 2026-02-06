@@ -672,6 +672,15 @@ export function BabylonViewer({
     console.log('[Multiplayer] Starting initialization...');
     addDiagnostic('[Multiplayer] Initializing multiplayer mode...');
 
+    // Hide original model meshes to avoid overlap with player models
+    if (originalMeshesRef.current) {
+      originalMeshesRef.current.forEach(mesh => {
+        mesh.setEnabled(false);
+      });
+    }
+    // Stop original model animations
+    animationGroupsRef.current.forEach(group => group.stop());
+
     // Create game environment (floor, lighting)
     const areaSize = 50;
 
@@ -701,8 +710,19 @@ export function BabylonViewer({
 
     addDiagnostic('[Multiplayer] Pathfinding initialized');
 
-    // Initialize local player controller
-    const localPlayer = new PlayerController(scene, modelFile, pathfinding, colyseusManager);
+    // Get server-assigned model path for local player
+    const currentRoom = colyseusManager.getRoom();
+    let localModelPath: string | File = modelFile;
+    if (currentRoom) {
+      const localPlayerState = currentRoom.state.players.get(currentRoom.sessionId);
+      if (localPlayerState?.modelPath) {
+        localModelPath = localPlayerState.modelPath;
+        console.log('[Multiplayer] Using server-assigned model:', localModelPath);
+      }
+    }
+
+    // Initialize local player controller with server-assigned model
+    const localPlayer = new PlayerController(scene, localModelPath, pathfinding, colyseusManager);
 
     // Expose to window for testing
     (window as any).localPlayerRef = { current: localPlayer };
@@ -772,6 +792,13 @@ export function BabylonViewer({
       const floorMesh = scene.getMeshByName('floor');
       if (floorMesh) {
         floorMesh.dispose();
+      }
+
+      // Re-enable original model meshes
+      if (originalMeshesRef.current) {
+        originalMeshesRef.current.forEach(mesh => {
+          mesh.setEnabled(true);
+        });
       }
 
       // Clean up window references

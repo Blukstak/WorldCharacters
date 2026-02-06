@@ -57,10 +57,18 @@ export class PlayerController {
       // Stop all animations initially
       this.animationGroups.forEach(anim => anim.stop());
 
-      // Find walk animation
+      // Find walk animation - prefer Standard_Walk
       this.walkAnimation = this.animationGroups.find(anim =>
+        anim.name === 'Standard_Walk'
+      ) || this.animationGroups.find(anim =>
         anim.name.toLowerCase().includes('walk')
       ) || null;
+
+      // Start walk animation immediately so character isn't in T-pose
+      if (this.walkAnimation) {
+        this.walkAnimation.start(true);
+        this.currentAnimation = this.walkAnimation.name;
+      }
 
       // Get spawn position from server (will be set via updateFromServer)
       // For now, set to origin - the server will send the correct position

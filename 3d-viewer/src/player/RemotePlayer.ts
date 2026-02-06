@@ -13,6 +13,8 @@ export class RemotePlayer {
   private mesh: AbstractMesh | null = null;
   private animationGroups: AnimationGroup[] = [];
   private currentAnimation: string = 'idle';
+  private pendingAnimation: string | null = null;
+  private modelLoaded = false;
 
   // Current position (actual render position)
   public position: Vector3 = Vector3.Zero();
@@ -31,13 +33,11 @@ export class RemotePlayer {
   private enablePrediction = true;
 
   constructor(scene: Scene, identity: string, modelPath: string) {
-    console.log(`🎭 [RemotePlayer] Constructor called for ${identity} with model ${modelPath}`);
     this.scene = scene;
     this.identity = identity;
     this.modelPath = modelPath;
 
     this.loadModel();
-    console.log(`🎭 [RemotePlayer] loadModel() called for ${identity}`);
   }
 
   /**
@@ -56,25 +56,21 @@ export class RemotePlayer {
 
       this.mesh = result.meshes[0];
       this.animationGroups = result.animationGroups;
+      this.modelLoaded = true;
 
-      console.log(`[RemotePlayer:${this.identity}] Model loaded with ${this.animationGroups.length} animations:`,
-        this.animationGroups.map(a => a.name).join(', '));
+      console.log(`[RemotePlayer:${this.identity}] Model loaded with ${this.animationGroups.length} animations`);
 
       // Stop all animations initially
       this.animationGroups.forEach(anim => anim.stop());
 
-      // Start Standard_Walk animation specifically (not Man_Walk)
-      const walkAnimation = this.animationGroups.find(anim =>
-        anim.name === 'Standard_Walk'
-      ) || this.animationGroups.find(anim =>
-        anim.name.toLowerCase().includes('walk')
-      );
-
-      if (walkAnimation) {
-        walkAnimation.start(true);
-        console.log(`[RemotePlayer:${this.identity}] ✓ Started walk animation: ${walkAnimation.name}`);
+      // Play pending animation if one was requested before model loaded
+      if (this.pendingAnimation) {
+        console.log(`[RemotePlayer:${this.identity}] Playing pending animation: ${this.pendingAnimation}`);
+        this.playAnimation(this.pendingAnimation);
+        this.pendingAnimation = null;
       } else {
-        console.warn(`[RemotePlayer:${this.identity}] ⚠️  No walk animation found!`);
+        // Default: start walk animation
+        this.playAnimation('walk');
       }
 
       // Set initial position
@@ -115,7 +111,6 @@ export class RemotePlayer {
     // Update animation if changed
     if (update.animation !== this.currentAnimation) {
       this.playAnimation(update.animation);
-      this.currentAnimation = update.animation;
     }
 
     this.lastUpdateTime = now;
@@ -130,10 +125,13 @@ export class RemotePlayer {
     this.targetRotation = schema.rotationY;
 
     // Update animation if changed
-    if (schema.animation !== this.currentAnimation) {
-      console.log(`[RemotePlayer:${this.identity}] Animation change: ${this.currentAnimation} → ${schema.animation} (${this.animationGroups.length} animations available)`);
-      this.playAnimation(schema.animation);
-      this.currentAnimation = schema.animation;
+    if (schema.animation && schema.animation !== this.currentAnimation) {
+      if (!this.modelLoaded) {
+        // Store pending animation - will be played when model loads
+        this.pendingAnimation = schema.animation;
+      } else {
+        this.playAnimation(schema.animation);
+      }
     }
 
     this.lastUpdateTime = Date.now();
@@ -173,10 +171,7 @@ export class RemotePlayer {
    * Play animation by name or pattern
    */
   private playAnimation(animationName: string): void {
-    console.log(`[RemotePlayer:${this.identity}] playAnimation('${animationName}') - ${this.animationGroups.length} animations available`);
-
     if (this.animationGroups.length === 0) {
-      console.warn(`[RemotePlayer:${this.identity}] ⚠️  Cannot play animation - model not loaded yet!`);
       return;
     }
 
@@ -187,7 +182,7 @@ export class RemotePlayer {
       }
     });
 
-    // Prefer Standard_Walk over Man_Walk
+    // Prefer Standard_Walk over Man_Walk for walk animations
     let animation: AnimationGroup | undefined;
     if (animationName.toLowerCase().includes('walk')) {
       animation = this.animationGroups.find(anim => anim.name === 'Standard_Walk') ||
@@ -200,19 +195,17 @@ export class RemotePlayer {
 
     if (animation) {
       animation.start(true);
-      console.log(`[RemotePlayer:${this.identity}] ✓ Playing: ${animation.name}`);
+      this.currentAnimation = animationName;
     } else {
-      console.warn(`[RemotePlayer:${this.identity}] ⚠️  Animation '${animationName}' not found`);
-      // Try common animation patterns
+      // Fallback: try idle
       if (animationName === 'idle') {
-        // Look for idle or default animation
         const idleAnim = this.animationGroups.find(anim =>
           anim.name.toLowerCase().includes('idle') ||
           anim.name.toLowerCase().includes('default')
         );
         if (idleAnim) {
           idleAnim.start(true);
-          console.log(`[RemotePlayer:${this.identity}] ✓ Playing fallback: ${idleAnim.name}`);
+          this.currentAnimation = animationName;
         }
       }
     }

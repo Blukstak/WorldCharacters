@@ -57,7 +57,7 @@ function App() {
     serverUrl: 'ws://localhost:2567',
     roomName: 'game',
     playerName: playerNameRef.current,
-    modelPath: typeof modelFile === 'string' ? modelFile : undefined,
+    // Don't send modelPath - let server randomly assign models
   });
 
   // Update manager ref when it changes

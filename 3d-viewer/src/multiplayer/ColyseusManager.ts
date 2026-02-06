@@ -21,10 +21,14 @@ export class ColyseusManager {
   async connect(roomName: string, options: { name?: string; modelPath?: string }): Promise<void> {
     try {
       console.log('[ColyseusManager] Attempting to join/create room...');
-      this.room = await this.client.joinOrCreate<GameState>('game_room', {
-        name: options.name || `Player-${Math.random().toString(36).substr(2, 6)}`,
-        modelPath: options.modelPath || '/models/GreenGuy_Animated.glb',
-      });
+      const joinOptions: Record<string, string> = {
+        name: options.name || `Player-${Math.random().toString(36).substr(2, 9)}`,
+      };
+      // Only send modelPath if explicitly provided - let server pick randomly
+      if (options.modelPath) {
+        joinOptions.modelPath = options.modelPath;
+      }
+      this.room = await this.client.joinOrCreate<GameState>('game_room', joinOptions);
 
       console.log('[ColyseusManager] Connected to room:', this.room.id);
 
